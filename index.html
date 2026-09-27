@@ -133,7 +133,7 @@ input[type=text],input[type=number]{width:100%;padding:16px 18px;border-radius:1
 const PUBLIC_URL = ""; // пусто = адрес, по которому открыт файл
 const FACES = { "Настя":"nastya.jpg", "Витя":"vitya.jpg" }; // положить рядом с index.html
 const GAMES = [
- { id:"chron", tag:"Игра 1", name:"Как всё было",
+ { id:"chron", code:"2709", tag:"Игра 1", name:"Как всё было",
    intro:"10 вопросов про год Насти и Вити. Лика читает — вы выбираете в телефоне.",
    events: [
   { title:"Где познакомились Настя и Витя?",
@@ -167,7 +167,7 @@ const GAMES = [
     options:["Осенью 2026","Зимой 2026","Весной 2027","Они ещё не знают"], answer:3,
     after:"Сегодня — с друзьями. Большая, с родственниками с обеих сторон, — отдельно. Когда — ещё не решили." },
  ] },
- { id:"who", tag:"Игра 2", name:"Настя или Витя",
+ { id:"who", code:"2711", tag:"Игра 2", name:"Настя или Витя",
    intro:"11 вопросов, 2 варианта. Свайп влево — Настя, вправо — Витя.",
    events: [
   { title:"Кто котик?", options:["Настя","Витя"], answer:1, after:"Настя написала «котик» 350 раз, Витя — 172. По имени — «Витя» — Настя написала 10 раз за 10 месяцев." },
@@ -192,7 +192,7 @@ const store = {
 let mode = null;
 const VER = (s => { let h=0; for (const c of s) h=(h*31 + c.charCodeAt(0))|0; return (h>>>0).toString(36) })(JSON.stringify(GAMES.map(g=>[g.id,g.events.map(e=>[e.title,e.options,e.answer])])));
 const KEY = m => "wq3-"+m+"-"+VER;
-const fresh = () => ({ g:null, i:-1, phase:"ask", revealed:false, name:"", answers:{}, shown:{}, results:{} });
+const fresh = () => ({ g:null, i:-1, phase:"ask", revealed:false, name:"", answers:{}, shown:{}, results:{}, unlocked:{} });
 let S = fresh();
 const G  = () => GAMES[S.g];
 const EV = () => G().events;
@@ -215,7 +215,7 @@ function load(){
 function save(){ if(mode) store.set(KEY(mode), S) }
 function toGames(){ S.g=null; S.i=-1; S.phase="ask"; S.revealed=false; save(); render() }
 function startGame(g){ S.g=g; S.i=0; S.phase="ask"; S.revealed=false; ans(); save(); render() }
-function resetGame(){ const id=G().id; S.answers[id]=Array(N()).fill(null); S.shown[id]=[]; S.results[id]=[]; S.i=0; S.phase="ask"; S.revealed=false; save(); render() }
+function resetGame(){ const id=G().id; S.answers[id]=Array(N()).fill(null); S.shown[id]=[]; S.results[id]=[]; S.unlocked[id]=false; S.i=0; S.phase="ask"; S.revealed=false; save(); render() }
 
 // ---------- рендер ----------
 const app = document.getElementById("app");
@@ -309,8 +309,8 @@ function renderHostEnd(){
       <ul class="tl">${EV().map(e=>`<li><span class="d">${esc(e.date||e.options[e.answer])}</span><span class="t">${esc(e.title)}${e.date?` — ${esc(e.options[e.answer])}`:""}</span>${e.after?`<span class="y">${esc(e.after)}</span>`:""}</li>`).join("")}</ul>
     </div>
     <div class="card" style="display:grid;gap:14px">
-      <div class="eyebrow">Результаты гостей</div>
-      <p class="tiny">Лика спрашивает у каждого цифру с телефона и вносит сюда.</p>
+      <div class="row"><div class="eyebrow">Результаты гостей</div><div class="eyebrow">Код для телефонов: <span class="date" style="font-size:28px">${esc(G().code)}</span></div></div>
+      <p class="tiny">Лика называет код — у гостей открывается счёт. Потом спрашивает цифры и вносит сюда.</p>
       <form id="resf" class="row" style="justify-content:flex-start">
         <input type="text" id="rn" placeholder="Имя" style="flex:1;min-width:140px" autocomplete="off">
         <input type="number" id="rs" min="0" max="${n}" placeholder="из ${n}" style="width:110px">
@@ -369,6 +369,25 @@ function renderPlay(){
   const i = Math.max(0, S.i), n = N(), A = ans();
   if (i >= n) {
     const sc = scoreOf();
+    if (!S.unlocked[G().id]) {
+      app.innerHTML = `
+      <div class="wrap play">
+        <div class="card" style="display:grid;gap:16px;text-align:center">
+          <div class="eyebrow">${esc(S.name)} · ${esc(G().name)}</div>
+          <h2>Ответы приняты</h2>
+          <p class="muted">Правильные ответы — на экране. Когда Лика назовёт код, введите его сюда и увидите свой счёт.</p>
+          <form id="unl" style="display:grid;gap:10px">
+            <input type="text" id="code" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="Код с экрана" autocomplete="off" style="text-align:center;font-size:24px;letter-spacing:.2em">
+            <button class="btn" type="submit">Показать счёт</button>
+          </form>
+        </div>
+        <div class="row"><span></span><button class="btn ghost" id="games">К играм</button></div>
+      </div>`;
+      const f = app.querySelector("#unl"), inp = app.querySelector("#code");
+      f.onsubmit = ev => { ev.preventDefault(); if (inp.value.trim()===G().code) { S.unlocked[G().id]=true; save(); render() } else { inp.value=""; inp.placeholder="Не тот код"; inp.focus() } };
+      app.querySelector("#games").onclick = toGames;
+      return;
+    }
     app.innerHTML = `
     <div class="wrap play">
       <div class="card" style="display:grid;gap:18px;text-align:center">
@@ -402,7 +421,7 @@ function renderPlay(){
     </div>
     <div class="row">
       <span></span>
-      <button class="btn" id="next" ${picked==null?'disabled':''}>${i===n-1?'Мой счёт':'Дальше'}</button>
+      <button class="btn" id="next" ${picked==null?'disabled':''}>${i===n-1?'Готово':'Дальше'}</button>
     </div>
   </div>`;
   app.querySelectorAll(".opt,.face").forEach(b => b.onclick = () => { if(b.disabled) return; A[i]=+b.dataset.k; save(); render() });
